@@ -22,7 +22,7 @@ class AktivitasLari {
 
   // Catatan bebas opsional dari pengguna (bisa kosong)
   final String catatan;
-
+  // Konstruktor konstan untuk menginisialisasi sesi aktivitas lari
   const AktivitasLari({
     required this.id,
     required this.userId,
