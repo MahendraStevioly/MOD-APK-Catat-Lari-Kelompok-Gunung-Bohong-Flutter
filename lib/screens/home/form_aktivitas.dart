@@ -152,7 +152,7 @@ class _FormAktivitasState extends State<FormAktivitas> {
       provider.tambah(aktivitasBaru);
     }
 
-    // Tampilkan notifikasi sukses sebelum menutup form
+    // Tampilkan notifikasi bahwa telah sukses sebelum menutup form
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
