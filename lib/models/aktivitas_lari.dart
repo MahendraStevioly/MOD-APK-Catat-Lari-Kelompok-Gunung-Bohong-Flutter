@@ -59,7 +59,7 @@ class AktivitasLari {
     return '${menit}m';
   }
 
-  /// Estimasi kalori yang terbakar.
+  /// Estimasi jumlah kalori yang terbakar.
   /// Menggunakan rumus sederhana: 60 kalori per kilometer.
   int get kaloriEstimasi => (jarakKm * 60).round();
 
