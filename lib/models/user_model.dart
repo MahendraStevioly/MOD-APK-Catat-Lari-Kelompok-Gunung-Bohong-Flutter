@@ -42,6 +42,7 @@ class UserModel {
       nama: map['nama'] as String,
       email: map['email'] as String,
       fotoUrl: map['fotoUrl'] as String?,
+      // Mengonversi tipe 'num' ke 'double' untuk fleksibilitas tipe data angka
       totalJarakKm: (map['totalJarakKm'] as num?)?.toDouble() ?? 0.0,
       totalSesiLari: (map['totalSesiLari'] as int?) ?? 0,
     );
