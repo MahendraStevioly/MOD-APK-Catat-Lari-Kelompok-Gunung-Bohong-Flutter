@@ -1,49 +1,38 @@
-// File: login_screen.dart
-// Halaman masuk (login) — memvalidasi kredensial terhadap AuthProvider
-// dan menyimpan sesi pengguna yang berhasil login
+// File: login_view.dart
+// View untuk halaman Login — hanya bertanggung jawab menampilkan UI
+// State loading diambil dari LoginViewModel; logika autentikasi dari AuthViewModel
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../providers/auth_provider.dart';
+import '../../viewmodels/auth_viewmodel.dart';
+import '../../viewmodels/login_viewmodel.dart';
 import '../../utils/app_constants.dart';
 import '../../utils/app_routes.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 
-/// LoginScreen menampilkan form email dan password untuk autentikasi pengguna.
+/// LoginView menampilkan form email dan password untuk autentikasi pengguna.
 ///
-/// Proses login:
-/// 1. Validasi input form (tidak boleh kosong, format benar)
-/// 2. Kirim ke AuthProvider.login() untuk dicocokkan dengan akun terdaftar
-/// 3. Jika berhasil, GoRouter redirect ke HomeScreen
-/// 4. Jika gagal, tampilkan pesan error spesifik dari AuthProvider
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+/// Dalam pola MVVM:
+/// - View (ini): rendering UI + meneruskan aksi pengguna ke ViewModel
+/// - ViewModel : [LoginViewModel] (state loading), [AuthViewModel] (logika login)
+class LoginView extends StatefulWidget {
+  const LoginView({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<LoginView> createState() => _LoginViewState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  // Kunci global untuk memvalidasi seluruh form sekaligus
+class _LoginViewState extends State<LoginView> {
   final _formKey = GlobalKey<FormState>();
-
-  // Controller untuk mengakses nilai input email
   final _emailController = TextEditingController();
-
-  // Controller untuk mengakses nilai input password
   final _passwordController = TextEditingController();
 
-  // Mengontrol apakah karakter password ditampilkan atau disembunyikan
+  // State UI murni — toggle tampilan password, tidak perlu di ViewModel
   bool _passwordTerlihat = false;
 
-  // Mengontrol tampilan loading di tombol saat proses login berlangsung
-  bool _isLoading = false;
-
-  /// Membersihkan semua controller saat widget dihapus dari widget tree.
-  /// Penting untuk mencegah memory leak.
   @override
   void dispose() {
     _emailController.dispose();
@@ -51,37 +40,26 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Menangani proses login: validasi → kirim ke AuthProvider → navigasi.
-  ///
-  /// Flow:
-  /// 1. Validasi form — hentikan jika ada error
-  /// 2. Tampilkan loading dan tutup keyboard
-  /// 3. Simulasi delay jaringan (ganti dengan API call nyata)
-  /// 4. Panggil AuthProvider.login() dengan email dan password
-  /// 5. Tampilkan error jika gagal, navigasi ke Home jika berhasil
+  /// Meneruskan aksi login ke ViewModel, lalu menangani respons di View.
   Future<void> _handleLogin() async {
-    // Hentikan jika ada field yang tidak lolos validasi
     if (!_formKey.currentState!.validate()) return;
 
-    // Tutup keyboard virtual agar tidak mengganggu loading
     FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
 
-    // Simulasi delay network request (ganti dengan API call nyata)
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
+    // LoginViewModel mengelola state loading + delay jaringan
+    final loginVM = context.read<LoginViewModel>();
+    final authVM = context.read<AuthViewModel>();
 
-    setState(() => _isLoading = false);
-
-    // Validasi kredensial terhadap daftar akun yang terdaftar di AuthProvider
-    final colorScheme = Theme.of(context).colorScheme;
-    final error = context.read<AuthProvider>().login(
+    final error = await loginVM.login(
+      authVM,
       _emailController.text.trim(),
       _passwordController.text,
     );
 
+    if (!mounted) return;
+
     if (error != null) {
-      // Login gagal — tampilkan pesan error spesifik dari AuthProvider
+      final colorScheme = Theme.of(context).colorScheme;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error),
@@ -95,7 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Login berhasil — AuthProvider sudah memanggil AuthState.masuk() secara internal
     context.go(AppRoutes.home);
   }
 
@@ -103,6 +80,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final colorScheme = Theme.of(context).colorScheme;
+
+    // View mengamati LoginViewModel untuk state loading tombol
+    final isLoading = context.watch<LoginViewModel>().isLoading;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -117,35 +97,20 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(height: size.height * 0.08),
-
-                // ===== HEADER: Logo + Judul + Sub-judul =====
                 _buildHeader(colorScheme),
-
                 SizedBox(height: size.height * 0.06),
-
-                // ===== FORM: Email + Password =====
                 _buildForm(),
-
                 const SizedBox(height: AppSizes.paddingTerkecil),
-
-                // Tautan lupa password di sisi kanan
                 _buildLupaPassword(colorScheme),
-
                 const SizedBox(height: AppSizes.paddingKecil * 2),
-
-                // Tombol login utama dengan state loading
                 CustomButton(
                   teks: AppStrings.tombolMasuk,
                   onPressed: _handleLogin,
-                  isLoading: _isLoading,
+                  isLoading: isLoading,
                   icon: Icons.login_rounded,
                 ),
-
                 const SizedBox(height: 32),
-
-                // Tautan ke halaman register
                 _buildTautanDaftar(colorScheme),
-
                 const SizedBox(height: AppSizes.paddingKartu),
               ],
             ),
@@ -155,11 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Membangun bagian header dengan logo ikon, nama app, dan sub-judul.
   Widget _buildHeader(ColorScheme colorScheme) {
     return Column(
       children: [
-        // Lingkaran logo dengan ikon lari
         Container(
           width: AppSizes.ukuranLogoLogin,
           height: AppSizes.ukuranLogoLogin,
@@ -181,8 +144,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 20),
-
-        // Nama aplikasi
         Text(
           AppStrings.namaApp,
           style: TextStyle(
@@ -193,8 +154,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 6),
-
-        // Sub-judul di bawah nama app
         Text(
           AppStrings.subJudulLogin,
           style: TextStyle(
@@ -207,11 +166,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Membangun kolom field input email dan password.
   Widget _buildForm() {
     return Column(
       children: [
-        // Field email
         CustomTextField(
           controller: _emailController,
           label: AppStrings.fieldEmail,
@@ -226,8 +183,6 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         ),
         const SizedBox(height: AppSizes.paddingKartu),
-
-        // Field password dengan toggle visibility
         CustomTextField(
           controller: _passwordController,
           label: AppStrings.fieldPassword,
@@ -255,7 +210,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Membangun tautan "Lupa Password?" yang rata kanan.
   Widget _buildLupaPassword(ColorScheme colorScheme) {
     return Align(
       alignment: Alignment.centerRight,
@@ -272,7 +226,6 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  /// Membangun baris tautan ke halaman pendaftaran akun baru.
   Widget _buildTautanDaftar(ColorScheme colorScheme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

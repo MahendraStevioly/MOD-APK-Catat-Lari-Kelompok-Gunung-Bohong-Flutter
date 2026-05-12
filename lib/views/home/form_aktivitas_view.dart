@@ -1,52 +1,44 @@
-// File: form_aktivitas.dart
-// Widget form untuk mencatat aktivitas lari baru atau mengedit yang sudah ada
-// Ditampilkan sebagai modal bottom sheet dari HomeScreen
+// File: form_aktivitas_view.dart
+// View untuk form tambah/edit aktivitas lari — ditampilkan sebagai modal bottom sheet
+// Logika CRUD didelegasikan ke AktivitasViewModel; logika UI form tetap di View
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/aktivitas_lari.dart';
-import '../../providers/aktivitas_provider.dart';
-import '../../providers/auth_provider.dart';
+import '../../viewmodels/aktivitas_viewmodel.dart';
+import '../../viewmodels/auth_viewmodel.dart';
 import '../../utils/app_constants.dart';
 
-/// FormAktivitas adalah form untuk operasi CREATE dan UPDATE aktivitas lari.
-/// Jika [aktivitasYangDiEdit] diisi → mode EDIT (form pre-filled).
-/// Jika null → mode TAMBAH BARU.
-class FormAktivitas extends StatefulWidget {
-  // Aktivitas yang ingin diedit. Null jika sedang menambah aktivitas baru.
+/// FormAktivitasView adalah form modal untuk operasi CREATE dan UPDATE aktivitas lari.
+///
+/// Dalam pola MVVM:
+/// - View (ini): rendering form UI + validasi input
+/// - ViewModel : [AktivitasViewModel] (operasi CRUD), [AuthViewModel] (userId saat CREATE)
+///
+/// Mode ditentukan oleh [aktivitasYangDiEdit]:
+/// - null → mode TAMBAH BARU
+/// - berisi objek → mode EDIT (form pre-filled)
+class FormAktivitasView extends StatefulWidget {
   final AktivitasLari? aktivitasYangDiEdit;
 
-  const FormAktivitas({super.key, this.aktivitasYangDiEdit});
+  const FormAktivitasView({super.key, this.aktivitasYangDiEdit});
 
   @override
-  State<FormAktivitas> createState() => _FormAktivitasState();
+  State<FormAktivitasView> createState() => _FormAktivitasViewState();
 }
 
-class _FormAktivitasState extends State<FormAktivitas> {
-  // Kunci global untuk mengakses dan memvalidasi seluruh Form
+class _FormAktivitasViewState extends State<FormAktivitasView> {
   final _formKey = GlobalKey<FormState>();
-
-  // Controller untuk field input jarak (km)
   final _jarakController = TextEditingController();
-
-  // Controller untuk field input jam (bagian dari durasi)
   final _jamController = TextEditingController();
-
-  // Controller untuk field input menit (bagian dari durasi)
   final _menitController = TextEditingController();
-
-  // Controller untuk field catatan bebas
   final _catatanController = TextEditingController();
 
-  // Tanggal yang dipilih oleh pengguna — default hari ini
   late DateTime _tanggalDipilih;
-
-  // Status loading saat proses menyimpan
   bool _isLoading = false;
 
-  /// true = sedang mengedit aktivitas lama, false = menambah baru
   bool get _isEditMode => widget.aktivitasYangDiEdit != null;
 
   @override
@@ -54,11 +46,9 @@ class _FormAktivitasState extends State<FormAktivitas> {
     super.initState();
     _tanggalDipilih = DateTime.now();
 
-    // Jika mode edit, isi semua field dengan data aktivitas yang ada
     if (_isEditMode) {
       final a = widget.aktivitasYangDiEdit!;
       _jarakController.text = a.jarakKm.toStringAsFixed(1);
-      // Pisahkan total menit menjadi jam dan menit
       _jamController.text = (a.waktuMenit ~/ 60).toString();
       _menitController.text = (a.waktuMenit % 60).toString();
       _catatanController.text = a.catatan;
@@ -66,7 +56,6 @@ class _FormAktivitasState extends State<FormAktivitas> {
     }
   }
 
-  /// Membersihkan semua controller saat widget dihapus dari tree
   @override
   void dispose() {
     _jarakController.dispose();
@@ -76,37 +65,29 @@ class _FormAktivitasState extends State<FormAktivitas> {
     super.dispose();
   }
 
-  /// Membuka dialog date picker untuk memilih tanggal aktivitas
   Future<void> _pilihTanggal() async {
     final terpilih = await showDatePicker(
       context: context,
       initialDate: _tanggalDipilih,
-      // Batasi pilihan tanggal: mulai 2020 hingga hari ini
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       helpText: 'Pilih Tanggal Lari',
       confirmText: 'Pilih',
       cancelText: AppStrings.tombolBatal,
     );
-
-    // Update state hanya jika pengguna benar-benar memilih tanggal
     if (terpilih != null) {
       setState(() => _tanggalDipilih = terpilih);
     }
   }
 
-  /// Menyimpan aktivitas baru atau memperbarui aktivitas yang ada.
-  /// Dipanggil saat tombol "Simpan" ditekan.
+  /// Memvalidasi input lalu mendelegasikan operasi simpan ke [AktivitasViewModel].
   void _simpan() {
-    // Hentikan jika ada field yang tidak lolos validasi
     if (!_formKey.currentState!.validate()) return;
 
-    // Hitung total durasi dalam menit dari jam dan menit yang diinput
     final jam = int.tryParse(_jamController.text) ?? 0;
     final menit = int.tryParse(_menitController.text) ?? 0;
     final totalMenit = jam * 60 + menit;
 
-    // Validasi tambahan: durasi harus lebih dari 0
     if (totalMenit <= 0) {
       final colorScheme = Theme.of(context).colorScheme;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -124,8 +105,8 @@ class _FormAktivitasState extends State<FormAktivitas> {
 
     setState(() => _isLoading = true);
 
-    // Ambil provider dari context untuk operasi CRUD
-    final provider = context.read<AktivitasProvider>();
+    // View membaca AktivitasViewModel untuk operasi CRUD
+    final aktivitasVM = context.read<AktivitasViewModel>();
     final jarak = double.parse(_jarakController.text.replaceAll(',', '.'));
 
     if (_isEditMode) {
@@ -136,11 +117,10 @@ class _FormAktivitasState extends State<FormAktivitas> {
         tanggal: _tanggalDipilih,
         catatan: _catatanController.text.trim(),
       );
-      provider.perbarui(aktivitasBaru);
+      aktivitasVM.perbarui(aktivitasBaru);
     } else {
-      // CREATE — buat objek baru dengan ID unik dari timestamp
-      // userId diambil dari AuthProvider agar aktivitas terikat ke akun yang sedang login
-      final userId = context.read<AuthProvider>().currentUser!.id;
+      // CREATE — userId diambil dari AuthViewModel
+      final userId = context.read<AuthViewModel>().currentUser!.id;
       final aktivitasBaru = AktivitasLari(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         userId: userId,
@@ -149,10 +129,9 @@ class _FormAktivitasState extends State<FormAktivitas> {
         tanggal: _tanggalDipilih,
         catatan: _catatanController.text.trim(),
       );
-      provider.tambah(aktivitasBaru);
+      aktivitasVM.tambah(aktivitasBaru);
     }
 
-    // Tampilkan notifikasi bahwa telah sukses sebelum menutup form
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -168,21 +147,17 @@ class _FormAktivitasState extends State<FormAktivitas> {
       ),
     );
 
-    // Tutup bottom sheet setelah menyimpan
     Navigator.of(context).pop();
   }
 
-  /// Memformat DateTime menjadi string yang mudah dibaca.
-  /// Contoh: "Selasa, 6 Mei 2026"
   String _formatTanggal(DateTime tanggal) {
     const namaHari = [
-      'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'
+      'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
     ];
     const namaBulan = [
       'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
     ];
-    // weekday: 1=Senin, 7=Minggu; index list mulai 0 jadi -1
     final hari = namaHari[tanggal.weekday - 1];
     final bulan = namaBulan[tanggal.month - 1];
     return '$hari, ${tanggal.day} $bulan ${tanggal.year}';
@@ -193,7 +168,6 @@ class _FormAktivitasState extends State<FormAktivitas> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      // Padding bawah mengikuti tinggi keyboard agar form tidak tertutup
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
@@ -235,7 +209,8 @@ class _FormAktivitasState extends State<FormAktivitas> {
                       padding: const EdgeInsets.all(AppSizes.paddingTerkecil),
                       decoration: BoxDecoration(
                         color: colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(AppSizes.radiusKecil + 2),
+                        borderRadius:
+                            BorderRadius.circular(AppSizes.radiusKecil + 2),
                       ),
                       child: Icon(
                         Icons.directions_run_rounded,
@@ -245,7 +220,6 @@ class _FormAktivitasState extends State<FormAktivitas> {
                     ),
                     const SizedBox(width: AppSizes.paddingKecil),
                     Text(
-                      // Judul berubah tergantung mode (tambah atau edit)
                       _isEditMode
                           ? AppStrings.judulFormEdit
                           : AppStrings.judulFormTambah,
@@ -270,7 +244,6 @@ class _FormAktivitasState extends State<FormAktivitas> {
                   ),
                 ),
                 const SizedBox(height: AppSizes.paddingTerkecil),
-                // Tombol yang menampilkan tanggal terpilih dan membuka date picker
                 InkWell(
                   onTap: _pilihTanggal,
                   borderRadius: BorderRadius.circular(AppSizes.radiusButton),
@@ -327,9 +300,9 @@ class _FormAktivitasState extends State<FormAktivitas> {
                 const SizedBox(height: AppSizes.paddingTerkecil),
                 TextFormField(
                   controller: _jarakController,
-                  // Keyboard angka dengan desimal
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  // Hanya izinkan angka dan titik/koma desimal
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
                   ],
@@ -338,7 +311,6 @@ class _FormAktivitasState extends State<FormAktivitas> {
                     prefixIcon: Icon(Icons.route_rounded),
                     suffixText: 'km',
                   ),
-                  // Validasi: jarak tidak boleh kosong dan harus > 0
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Jarak tidak boleh kosong';
@@ -353,7 +325,7 @@ class _FormAktivitasState extends State<FormAktivitas> {
 
                 const SizedBox(height: AppSizes.paddingKonten),
 
-                // ===== INPUT DURASI (JAM + MENIT) =====
+                // ===== INPUT DURASI =====
                 Text(
                   'Durasi',
                   style: TextStyle(
@@ -365,18 +337,18 @@ class _FormAktivitasState extends State<FormAktivitas> {
                 const SizedBox(height: AppSizes.paddingTerkecil),
                 Row(
                   children: [
-                    // Field jam — opsional (boleh kosong/0 untuk lari < 1 jam)
                     Expanded(
                       child: TextFormField(
                         controller: _jamController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: const InputDecoration(
                           hintText: '0',
                           prefixIcon: Icon(Icons.timer_outlined),
                           suffixText: 'jam',
                         ),
-                        // Jam boleh kosong, tapi jika diisi harus angka valid
                         validator: (value) {
                           if (value != null && value.isNotEmpty) {
                             if (int.tryParse(value) == null) {
@@ -387,22 +359,20 @@ class _FormAktivitasState extends State<FormAktivitas> {
                         },
                       ),
                     ),
-
                     const SizedBox(width: AppSizes.paddingKecil),
-
-                    // Field menit — wajib diisi setidaknya salah satu (jam atau menit)
                     Expanded(
                       child: TextFormField(
                         controller: _menitController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(
                           hintText: '30',
                           prefixIcon: Icon(Icons.schedule_rounded),
                           suffixText: 'menit',
                         ),
-                        // Validasi: menit harus 0-59
                         validator: (value) {
                           final menit = int.tryParse(value ?? '');
                           if (menit != null && (menit < 0 || menit > 59)) {
@@ -429,7 +399,6 @@ class _FormAktivitasState extends State<FormAktivitas> {
                 const SizedBox(height: AppSizes.paddingTerkecil),
                 TextFormField(
                   controller: _catatanController,
-                  // Izinkan banyak baris untuk catatan panjang
                   maxLines: 3,
                   maxLength: 200,
                   textInputAction: TextInputAction.done,
@@ -448,23 +417,20 @@ class _FormAktivitasState extends State<FormAktivitas> {
                 // ===== TOMBOL AKSI =====
                 Row(
                   children: [
-                    // Tombol Batal — menutup form tanpa menyimpan
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.radiusButton),
+                            borderRadius:
+                                BorderRadius.circular(AppSizes.radiusButton),
                           ),
                         ),
                         child: const Text(AppStrings.tombolBatal),
                       ),
                     ),
-
                     const SizedBox(width: AppSizes.paddingKecil),
-
-                    // Tombol Simpan — menjalankan _simpan()
                     Expanded(
                       flex: 2,
                       child: ElevatedButton.icon(
@@ -472,15 +438,17 @@ class _FormAktivitasState extends State<FormAktivitas> {
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.radiusButton),
+                            borderRadius:
+                                BorderRadius.circular(AppSizes.radiusButton),
                           ),
                         ),
-                        // Tampilkan spinner saat loading, ikon saat normal
                         icon: _isLoading
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Icon(
                                 _isEditMode

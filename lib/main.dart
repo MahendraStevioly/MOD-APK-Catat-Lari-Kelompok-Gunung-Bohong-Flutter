@@ -1,45 +1,66 @@
 // File: main.dart
 // Titik masuk utama aplikasi Catat Lari
-// Mengatur tema dan meneruskan konfigurasi router ke MaterialApp
+// Mengatur dependency injection MVVM dan meneruskan konfigurasi router ke MaterialApp
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// Import konfigurasi tema Material 3 kustom
-import 'utils/app_theme.dart';
+// Layer Database
+import 'database/database_helper.dart';
 
-// Import konfigurasi GoRouter yang berisi semua rute dan redirect logic
+// Layer Repository — mengabstraksikan akses data ke DatabaseHelper
+import 'repositories/user_repository.dart';
+import 'repositories/aktivitas_repository.dart';
+
+// Layer ViewModel — mengelola state dan logika bisnis
+import 'viewmodels/auth_viewmodel.dart';
+import 'viewmodels/aktivitas_viewmodel.dart';
+import 'viewmodels/login_viewmodel.dart';
+import 'viewmodels/register_viewmodel.dart';
+
+// Konfigurasi tema dan router
+import 'utils/app_theme.dart';
 import 'utils/app_router.dart';
 
-// Import semua Provider untuk state management
-import 'providers/auth_provider.dart';
-import 'providers/aktivitas_provider.dart';
-
-/// Fungsi main adalah titik masuk pertama yang dijalankan saat aplikasi dibuka.
+/// Titik masuk aplikasi. Menginisialisasi seluruh lapisan MVVM sebelum UI dirender.
 ///
-/// Provider dibuat manual di sini agar [initialize()] bisa di-await sebelum
-/// [runApp] dipanggil — memastikan data dari DB sudah tersedia saat UI pertama kali dirender.
+/// Urutan inisialisasi (penting — jangan diubah):
+/// 1. DatabaseHelper (singleton, dipakai oleh semua Repository)
+/// 2. Repository (mengabstraksikan DB untuk ViewModel)
+/// 3. ViewModel (menggunakan Repository untuk mengakses data)
+/// 4. Initialize ViewModels (load data dari DB sebelum UI tampil)
 void main() async {
-  // Pastikan binding Flutter sudah siap sebelum mengakses platform channel (DB)
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Buat provider di luar runApp agar bisa di-await
-  final authProvider = AuthProvider();
-  final aktivitasProvider = AktivitasProvider();
+  // ===== LAYER DATABASE =====
+  final db = DatabaseHelper();
+
+  // ===== LAYER REPOSITORY =====
+  // Repository dibuat dengan menerima DatabaseHelper via konstruktor (dependency injection)
+  final userRepo = UserRepository(db);
+  final aktivitasRepo = AktivitasRepository(db);
+
+  // ===== LAYER VIEWMODEL =====
+  // ViewModel dibuat dengan menerima Repository via konstruktor (dependency injection)
+  final authVM = AuthViewModel(userRepo);
+  final aktivitasVM = AktivitasViewModel(aktivitasRepo);
 
   // Muat data dari SQLite sebelum UI dirender
-  // Urutan penting: auth dulu karena aktivitas butuh user_id dari akun yang di-seed
-  await authProvider.initialize();
-  await aktivitasProvider.initialize();
+  // AuthViewModel harus diinisialisasi dulu karena aktivitas butuh user_id dari akun demo
+  await authVM.initialize();
+  await aktivitasVM.initialize();
 
-  // MultiProvider membungkus seluruh aplikasi agar semua screen
-  // bisa mengakses provider yang terdaftar via context.read/watch
+  // MultiProvider mendistribusikan semua ViewModel ke seluruh widget tree
   runApp(
     MultiProvider(
       providers: [
-        // Gunakan .value karena instance sudah dibuat dan di-init di atas
-        ChangeNotifierProvider.value(value: authProvider),
-        ChangeNotifierProvider.value(value: aktivitasProvider),
+        // App-level ViewModels: dipakai oleh banyak View sekaligus
+        ChangeNotifierProvider.value(value: authVM),
+        ChangeNotifierProvider.value(value: aktivitasVM),
+
+        // Screen-level ViewModels: mengelola state spesifik per halaman
+        ChangeNotifierProvider(create: (_) => LoginViewModel()),
+        ChangeNotifierProvider(create: (_) => RegisterViewModel()),
       ],
       child: const CatatLariApp(),
     ),
@@ -47,26 +68,15 @@ void main() async {
 }
 
 /// CatatLariApp adalah widget root aplikasi.
-/// Menggunakan MaterialApp.router agar GoRouter bisa mengelola navigasi penuh.
 class CatatLariApp extends StatelessWidget {
   const CatatLariApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // MaterialApp.router menggantikan MaterialApp biasa
-    // agar GoRouter bisa mengontrol seluruh sistem navigasi
     return MaterialApp.router(
-      // Judul aplikasi (tampil di task switcher OS)
       title: 'Catat Lari',
-
-      // Sembunyikan banner debug di pojok kanan atas
       debugShowCheckedModeBanner: false,
-
-      // Terapkan tema Material 3 kustom dari AppTheme
       theme: AppTheme.lightTheme,
-
-      // Teruskan konfigurasi GoRouter sebagai sumber kebenaran navigasi
-      // GoRouter menangani: rute, redirect, deep link, dll.
       routerConfig: AppRouter.router,
     );
   }

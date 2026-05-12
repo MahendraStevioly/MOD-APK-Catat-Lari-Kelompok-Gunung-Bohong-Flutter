@@ -8,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 /// DatabaseHelper adalah singleton yang mengelola koneksi SQLite.
 ///
 /// Dua tabel yang dikelola:
-/// - [_tabelUsers]: menyimpan akun terdaftar (id, nama, email, password)
+/// - [_tabelUsers]: menyimpan akun terdaaftar (id, nama, email, password)
 /// - [_tabelActivities]: menyimpan aktivitas lari per-user
 ///
 /// Pola singleton memastikan hanya ada satu koneksi DB di seluruh app.

@@ -1,31 +1,32 @@
-// File: profile_screen.dart
-// Halaman profil — menampilkan data user yang login dan statistik dari Provider
-// Data profil dan statistik sekarang diisolasi per-user via AuthProvider + AktivitasProvider
+// File: profile_view.dart
+// View untuk halaman profil — hanya bertanggung jawab menampilkan UI
+// Data dan logika bersumber dari AuthViewModel dan AktivitasViewModel
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../providers/aktivitas_provider.dart';
-import '../../providers/auth_provider.dart';
+import '../../viewmodels/aktivitas_viewmodel.dart';
+import '../../viewmodels/auth_viewmodel.dart';
 import '../../utils/app_constants.dart';
 import '../../utils/app_routes.dart';
 
-/// ProfileScreen menampilkan profil pengguna yang sedang login.
-/// Data bersumber dari AuthProvider (bukan dummy hardcoded) sehingga
-/// selalu sinkron dengan akun yang digunakan.
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
+/// ProfileView menampilkan profil pengguna yang sedang login.
+///
+/// Dalam pola MVVM:
+/// - View (ini): rendering UI + meneruskan aksi logout ke ViewModel
+/// - ViewModel : [AuthViewModel] (data user + logout), [AktivitasViewModel] (statistik)
+class ProfileView extends StatelessWidget {
+  const ProfileView({super.key});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Consumer2 mendengarkan dua provider sekaligus:
-    // AuthProvider untuk info user aktif, AktivitasProvider untuk statistik
-    return Consumer2<AuthProvider, AktivitasProvider>(
-      builder: (context, authProvider, aktivitasProvider, _) {
-        final user = authProvider.currentUser;
+    // View mengamati kedua ViewModel sekaligus
+    return Consumer2<AuthViewModel, AktivitasViewModel>(
+      builder: (context, authVM, aktivitasVM, _) {
+        final user = authVM.currentUser;
         final nama = user?.nama ?? 'Pengguna';
         final email = user?.email ?? '-';
         final userId = user?.id ?? '';
@@ -46,29 +47,15 @@ class ProfileScreen extends StatelessWidget {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                // ===== HEADER: foto + nama + email dari AuthProvider =====
                 _buildHeaderProfil(nama, email, colorScheme),
-
                 const SizedBox(height: AppSizes.paddingKonten),
-
-                // ===== STATISTIK: dihitung dari AktivitasProvider per-user =====
-                _buildStatistikKeseluruhan(aktivitasProvider, colorScheme, userId),
-
+                _buildStatistikKeseluruhan(aktivitasVM, colorScheme, userId),
                 const SizedBox(height: AppSizes.paddingKonten),
-
-                // ===== BADGE PENCAPAIAN =====
-                _buildPencapaian(aktivitasProvider, colorScheme, userId),
-
+                _buildPencapaian(aktivitasVM, colorScheme, userId),
                 const SizedBox(height: AppSizes.paddingKonten),
-
-                // ===== MENU PENGATURAN =====
                 _buildMenuPengaturan(context, colorScheme),
-
                 const SizedBox(height: AppSizes.paddingKonten),
-
-                // ===== TOMBOL KELUAR =====
                 _buildTombolKeluar(context, colorScheme),
-
                 const SizedBox(height: 40),
               ],
             ),
@@ -78,13 +65,11 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun header profil berisi avatar dengan inisial, nama, email, dan badge kelompok.
   Widget _buildHeaderProfil(
     String nama,
     String email,
     ColorScheme colorScheme,
   ) {
-    // Buat inisial dua huruf dari nama (misal "Ahmad Pelari" → "AP")
     final inisial = nama
         .split(' ')
         .take(2)
@@ -112,7 +97,6 @@ class ProfileScreen extends StatelessWidget {
           Stack(
             alignment: Alignment.bottomRight,
             children: [
-              // Avatar lingkaran besar dengan inisial nama
               Container(
                 width: AppSizes.ukuranAvatarBesar,
                 height: AppSizes.ukuranAvatarBesar,
@@ -122,7 +106,8 @@ class ProfileScreen extends StatelessWidget {
                   border: Border.all(color: AppColors.overlay, width: 3),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.bayangan.withAlpha(AppColors.alphaOverlayLemah),
+                      color: AppColors.bayangan
+                          .withAlpha(AppColors.alphaOverlayLemah),
                       blurRadius: AppSizes.blurBayanganBesar,
                       offset: const Offset(0, 5),
                     ),
@@ -139,7 +124,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              // Tombol kamera kecil di pojok kanan bawah avatar
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -155,10 +139,7 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: AppSizes.paddingKartu),
-
-          // Nama lengkap dari AuthProvider
           Text(
             nama,
             style: TextStyle(
@@ -167,10 +148,7 @@ class ProfileScreen extends StatelessWidget {
               color: colorScheme.onPrimary,
             ),
           ),
-
           const SizedBox(height: 4),
-
-          // Email dari AuthProvider
           Text(
             email,
             style: TextStyle(
@@ -178,10 +156,7 @@ class ProfileScreen extends StatelessWidget {
               color: colorScheme.onPrimary.withAlpha(AppColors.alphaTeksNormal),
             ),
           ),
-
           const SizedBox(height: AppSizes.paddingKecil),
-
-          // Badge nama kelompok
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSizes.paddingKecil,
@@ -197,7 +172,11 @@ class ProfileScreen extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.group_rounded, size: AppSizes.ikonKecil, color: colorScheme.onPrimary),
+                Icon(
+                  Icons.group_rounded,
+                  size: AppSizes.ikonKecil,
+                  color: colorScheme.onPrimary,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   AppStrings.namaKelompok,
@@ -215,9 +194,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun kartu statistik yang dihitung dari AktivitasProvider — hanya data user ini
   Widget _buildStatistikKeseluruhan(
-    AktivitasProvider provider,
+    AktivitasViewModel aktivitasVM,
     ColorScheme colorScheme,
     String userId,
   ) {
@@ -252,25 +230,35 @@ class ProfileScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildItemStatistik(
-                  nilai: provider.getTotalJarakKmByUser(userId).toStringAsFixed(1),
+                  nilai: aktivitasVM
+                      .getTotalJarakKmByUser(userId)
+                      .toStringAsFixed(1),
                   satuan: 'km',
                   label: AppStrings.totalJarak,
                   ikon: Icons.route_rounded,
                   warnaPrimary: colorScheme.primary,
                   colorScheme: colorScheme,
                 ),
-                Container(height: 50, width: 1, color: colorScheme.outlineVariant),
+                Container(
+                  height: 50,
+                  width: 1,
+                  color: colorScheme.outlineVariant,
+                ),
                 _buildItemStatistik(
-                  nilai: '${provider.getTotalSesiByUser(userId)}',
+                  nilai: '${aktivitasVM.getTotalSesiByUser(userId)}',
                   satuan: 'sesi',
                   label: 'Sesi Lari',
                   ikon: Icons.flag_rounded,
                   warnaPrimary: colorScheme.tertiary,
                   colorScheme: colorScheme,
                 ),
-                Container(height: 50, width: 1, color: colorScheme.outlineVariant),
+                Container(
+                  height: 50,
+                  width: 1,
+                  color: colorScheme.outlineVariant,
+                ),
                 _buildItemStatistik(
-                  nilai: '${provider.getTotalKaloriByUser(userId)}',
+                  nilai: '${aktivitasVM.getTotalKaloriByUser(userId)}',
                   satuan: 'kal',
                   label: AppStrings.kalori,
                   ikon: Icons.local_fire_department_outlined,
@@ -285,7 +273,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun satu item statistik berbentuk ikon + nilai + satuan + label.
   Widget _buildItemStatistik({
     required String nilai,
     required String satuan,
@@ -337,14 +324,13 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Badge pencapaian — terbuka berdasarkan total jarak dan sesi user ini
   Widget _buildPencapaian(
-    AktivitasProvider provider,
+    AktivitasViewModel aktivitasVM,
     ColorScheme colorScheme,
     String userId,
   ) {
-    final totalJarak = provider.getTotalJarakKmByUser(userId);
-    final totalSesi = provider.getTotalSesiByUser(userId);
+    final totalJarak = aktivitasVM.getTotalJarakKmByUser(userId);
+    final totalSesi = aktivitasVM.getTotalSesiByUser(userId);
 
     final daftarBadge = [
       {
@@ -415,7 +401,8 @@ class ProfileScreen extends StatelessWidget {
                         badge['ikon'] as IconData,
                         color: tercapai
                             ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant.withAlpha(AppColors.alphaPemisah),
+                            : colorScheme.onSurfaceVariant
+                                .withAlpha(AppColors.alphaPemisah),
                         size: 28,
                       ),
                     ),
@@ -426,8 +413,10 @@ class ProfileScreen extends StatelessWidget {
                         fontSize: AppSizes.teksMini,
                         color: tercapai
                             ? colorScheme.onSurface
-                            : colorScheme.onSurfaceVariant.withAlpha(AppColors.alphaTeksSekunder),
-                        fontWeight: tercapai ? FontWeight.w600 : FontWeight.normal,
+                            : colorScheme.onSurfaceVariant
+                                .withAlpha(AppColors.alphaTeksSekunder),
+                        fontWeight:
+                            tercapai ? FontWeight.w600 : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -441,7 +430,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun daftar menu pengaturan dalam container kartu
   Widget _buildMenuPengaturan(BuildContext context, ColorScheme colorScheme) {
     final daftarMenu = [
       {
@@ -500,7 +488,8 @@ class ProfileScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(AppSizes.paddingTerkecil),
                     decoration: BoxDecoration(
                       color: colorScheme.primaryContainer.withAlpha(128),
-                      borderRadius: BorderRadius.circular(AppSizes.radiusKecil + 2),
+                      borderRadius:
+                          BorderRadius.circular(AppSizes.radiusKecil + 2),
                     ),
                     child: Icon(
                       menu['ikon'] as IconData,
@@ -510,7 +499,10 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   title: Text(
                     menu['judul'] as String,
-                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
+                    ),
                   ),
                   subtitle: Text(
                     menu['subjudul'] as String,
@@ -539,7 +531,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun tombol keluar dengan dialog konfirmasi sebelum logout
   Widget _buildTombolKeluar(BuildContext context, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSizes.paddingKonten),
@@ -564,11 +555,9 @@ class ProfileScreen extends StatelessWidget {
                     foregroundColor: colorScheme.onError,
                   ),
                   onPressed: () {
-                    // 1. Tutup dialog
                     Navigator.of(ctx).pop();
-                    // 2. Logout via AuthProvider — bersihkan currentUser + AuthState.keluar()
-                    context.read<AuthProvider>().logout();
-                    // 3. Kembali ke login — GoRouter redirect memblokir akses tanpa login
+                    // View meneruskan aksi logout ke AuthViewModel
+                    context.read<AuthViewModel>().logout();
                     context.go(AppRoutes.login);
                   },
                   child: const Text(AppStrings.tombolKeluar),

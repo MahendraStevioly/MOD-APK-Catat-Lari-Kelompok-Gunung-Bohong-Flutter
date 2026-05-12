@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 /// StatsCard menampilkan satu buah statistik dalam format kartu persegi panjang.
 /// Terdiri dari kotak ikon berwarna, nilai besar, dan label di bawahnya.
 ///
-/// Biasanya digunakan dalam baris scroll horizontal di HomeScreen dan
-/// bagian statistik keseluruhan di ProfileScreen.
+/// Biasanya digunakan dalam baris scroll horizontal di HomeView dan
+/// bagian statistik keseluruhan di ProfileView.
 ///
 /// Contoh penggunaan:
 /// ```dart

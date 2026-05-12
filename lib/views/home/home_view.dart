@@ -1,45 +1,36 @@
-// File: home_screen.dart
-// Halaman utama aplikasi Catat Lari
-// Menampilkan sapaan, statistik lari per-user, dan daftar aktivitas lengkap dengan CRUD
+// File: home_view.dart
+// View untuk halaman utama — hanya bertanggung jawab menampilkan UI
+// Data dan logika bersumber dari AuthViewModel dan AktivitasViewModel
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/aktivitas_lari.dart';
-import '../../providers/aktivitas_provider.dart';
-import '../../providers/auth_provider.dart';
+import '../../viewmodels/aktivitas_viewmodel.dart';
+import '../../viewmodels/auth_viewmodel.dart';
 import '../../utils/app_constants.dart';
 import '../../utils/app_routes.dart';
 import '../../widgets/activity_card.dart';
 import '../../widgets/stats_card.dart';
 import '../../widgets/weekly_stats_widget.dart';
-import 'form_aktivitas.dart';
+import 'form_aktivitas_view.dart';
 
-/// HomeScreen adalah halaman utama yang menampilkan:
-/// 1. Banner sapaan dengan statistik ringkasan
-/// 2. Widget statistik 7 hari terakhir
-/// 3. Baris kartu statistik keseluruhan (scroll horizontal)
-/// 4. Daftar semua aktivitas lari atau tampilan kosong jika belum ada data
+/// HomeView adalah halaman utama yang menampilkan sapaan, statistik, dan daftar aktivitas.
 ///
-/// Semua data bersumber dari AuthProvider (data user) dan AktivitasProvider
-/// (data aktivitas), sehingga UI otomatis diperbarui saat data berubah.
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+/// Dalam pola MVVM:
+/// - View (ini): rendering UI + meneruskan aksi pengguna ke ViewModel
+/// - ViewModel : [AuthViewModel] (data user), [AktivitasViewModel] (data aktivitas + CRUD)
+class HomeView extends StatelessWidget {
+  const HomeView({super.key});
 
-  /// Membuka modal bottom sheet berisi form untuk tambah atau edit aktivitas.
-  ///
-  /// [aktivitasYangDiEdit] = null → mode tambah aktivitas baru.
-  /// [aktivitasYangDiEdit] = objek aktivitas → mode edit dengan form pre-filled.
   void _tampilkanForm(BuildContext context, {AktivitasLari? aktivitasYangDiEdit}) {
     showModalBottomSheet(
       context: context,
-      // isScrollControlled: true agar sheet bisa mengisi lebih dari 50% layar
       isScrollControlled: true,
-      // useSafeArea: true agar tidak tertutup notch atau status bar
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => FormAktivitas(aktivitasYangDiEdit: aktivitasYangDiEdit),
+      builder: (_) => FormAktivitasView(aktivitasYangDiEdit: aktivitasYangDiEdit),
     );
   }
 
@@ -47,47 +38,38 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Consumer2 mendengarkan dua provider sekaligus.
-    // Rebuild otomatis terjadi saat data user atau aktivitas berubah.
-    return Consumer2<AuthProvider, AktivitasProvider>(
-      builder: (context, authProvider, aktivitasProvider, _) {
-        final user = authProvider.currentUser;
-        // user dijamin tidak null di sini karena GoRouter sudah guard login
-        final userId = user!.id;
+    // View mengamati kedua ViewModel sekaligus — rebuild otomatis saat data berubah
+    return Consumer2<AuthViewModel, AktivitasViewModel>(
+      builder: (context, authVM, aktivitasVM, _) {
+        final user = authVM.currentUser!;
+        final userId = user.id;
         final namaDepan = user.nama.split(' ').first;
         final inisial = user.nama.isNotEmpty ? user.nama[0].toUpperCase() : 'U';
 
-        // Ambil hanya aktivitas milik user yang sedang login, urut terbaru
-        final daftarAktivitas = aktivitasProvider.getAktivitasByUser(userId);
+        final daftarAktivitas = aktivitasVM.getAktivitasByUser(userId);
 
         return Scaffold(
           backgroundColor: colorScheme.surfaceContainerLowest,
           appBar: _buildAppBar(context, colorScheme, inisial),
           body: RefreshIndicator(
             onRefresh: () async {
-              // Simulasi refresh — di app nyata ini akan fetch ulang dari server
               await Future.delayed(const Duration(milliseconds: 500));
             },
             color: colorScheme.primary,
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                // ===== 1. BANNER SAPAAN + RINGKASAN STATISTIK =====
                 SliverToBoxAdapter(
                   child: _buildBannerHeader(
                     colorScheme,
                     namaDepan,
-                    aktivitasProvider,
+                    aktivitasVM,
                     userId,
                   ),
                 ),
-
-                // ===== 2. STATISTIK 7 HARI TERAKHIR =====
                 SliverToBoxAdapter(
                   child: WeeklyStatsWidget(daftarAktivitas: daftarAktivitas),
                 ),
-
-                // ===== 3. LABEL "STATISTIK KESELURUHAN" =====
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -106,13 +88,9 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // ===== 4. BARIS KARTU STATISTIK (scroll horizontal) =====
                 SliverToBoxAdapter(
-                  child: _buildStatistikRow(colorScheme, aktivitasProvider, userId),
+                  child: _buildStatistikRow(colorScheme, aktivitasVM, userId),
                 ),
-
-                // ===== 5. HEADER "AKTIVITAS TERKINI" + BADGE JUMLAH =====
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
@@ -132,7 +110,6 @@ class HomeScreen extends StatelessWidget {
                             color: colorScheme.onSurface,
                           ),
                         ),
-                        // Badge jumlah sesi — hanya ditampilkan jika ada data
                         if (daftarAktivitas.isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -141,7 +118,9 @@ class HomeScreen extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(AppSizes.radiusBadge),
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusBadge,
+                              ),
                             ),
                             child: Text(
                               '${daftarAktivitas.length} sesi',
@@ -156,15 +135,11 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                // ===== 6. DAFTAR AKTIVITAS atau EMPTY STATE =====
                 if (daftarAktivitas.isEmpty)
-                  // Tampilkan ilustrasi kosong jika belum ada data
                   SliverFillRemaining(
                     child: _buildEmptyState(context, colorScheme),
                   )
                 else
-                  // Tampilkan daftar AktivitasCard menggunakan widget yang diekstrak
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(
                       AppSizes.paddingKonten,
@@ -178,19 +153,20 @@ class HomeScreen extends StatelessWidget {
                           final aktivitas = daftarAktivitas[index];
                           return AktivitasCard(
                             aktivitas: aktivitas,
-                            // Buka form edit dengan data aktivitas yang sudah ada
                             onEdit: () => _tampilkanForm(
                               context,
                               aktivitasYangDiEdit: aktivitas,
                             ),
-                            // Hapus aktivitas — dipanggil setelah user konfirmasi di dialog
                             onHapus: () {
+                              // View meneruskan aksi hapus ke AktivitasViewModel
                               context
-                                  .read<AktivitasProvider>()
+                                  .read<AktivitasViewModel>()
                                   .hapus(aktivitas.id, userId);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: const Text(AppStrings.aktivitasDihapus),
+                                  content: const Text(
+                                    AppStrings.aktivitasDihapus,
+                                  ),
                                   behavior: SnackBarBehavior.floating,
                                   backgroundColor: colorScheme.error,
                                   shape: RoundedRectangleBorder(
@@ -210,10 +186,7 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
           ),
-
-          // ===== FAB: Tombol Catat Lari Baru =====
           floatingActionButton: FloatingActionButton.extended(
-            // Buka form tambah aktivitas baru (aktivitasYangDiEdit = null)
             onPressed: () => _tampilkanForm(context),
             icon: const Icon(Icons.add_rounded),
             label: const Text(
@@ -226,9 +199,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun AppBar dengan logo, judul, notifikasi, dan avatar user.
-  ///
-  /// [inisial] adalah huruf pertama nama user yang ditampilkan di avatar.
   PreferredSizeWidget _buildAppBar(
     BuildContext context,
     ColorScheme colorScheme,
@@ -248,7 +218,6 @@ class HomeScreen extends StatelessWidget {
           onPressed: () {},
           tooltip: 'Notifikasi',
         ),
-        // Avatar dengan inisial nama — ketuk untuk buka halaman profil
         GestureDetector(
           onTap: () => context.go(AppRoutes.profile),
           child: Container(
@@ -270,17 +239,13 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun banner gradien bagian atas halaman.
-  ///
-  /// Berisi sapaan personal dengan nama user dan ringkasan tiga statistik:
-  /// Total Jarak, Total Sesi, dan Rata-rata Pace.
   Widget _buildBannerHeader(
     ColorScheme colorScheme,
     String namaDepan,
-    AktivitasProvider provider,
+    AktivitasViewModel aktivitasVM,
     String userId,
   ) {
-    final totalSesi = provider.getTotalSesiByUser(userId);
+    final totalSesi = aktivitasVM.getTotalSesiByUser(userId);
 
     return Container(
       width: double.infinity,
@@ -288,7 +253,6 @@ class HomeScreen extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          // Gradien dari warna primary ke tertiary untuk tampilan dinamis
           colors: [colorScheme.primary, colorScheme.tertiary],
         ),
       ),
@@ -301,7 +265,6 @@ class HomeScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Teks sapaan personal
           Text(
             'Halo, $namaDepan! 👋',
             style: TextStyle(
@@ -311,7 +274,6 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          // Pesan motivasi — berbeda tergantung apakah sudah ada aktivitas
           Text(
             totalSesi == 0 ? AppStrings.pesanAjakan : AppStrings.pesanMotivasi,
             style: TextStyle(
@@ -320,12 +282,9 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSizes.paddingKonten),
-
-          // Kartu ringkasan tiga statistik utama di dalam banner
           Container(
             padding: const EdgeInsets.all(AppSizes.paddingKartu),
             decoration: BoxDecoration(
-              // Latar putih transparan agar terlihat di atas gradien
               color: AppColors.overlay.withAlpha(AppColors.alphaOverlayLemah),
               borderRadius: BorderRadius.circular(AppSizes.radiusKartu),
               border: Border.all(
@@ -337,7 +296,7 @@ class HomeScreen extends StatelessWidget {
                 Expanded(
                   child: _buildRingkasanItem(
                     label: AppStrings.totalJarak,
-                    nilai: provider.getTotalJarakFormattedByUser(userId),
+                    nilai: aktivitasVM.getTotalJarakFormattedByUser(userId),
                     ikon: Icons.route_rounded,
                     warna: colorScheme.onPrimary,
                   ),
@@ -363,7 +322,7 @@ class HomeScreen extends StatelessWidget {
                 Expanded(
                   child: _buildRingkasanItem(
                     label: AppStrings.avgPace,
-                    nilai: provider.getAvgPaceFormattedByUser(userId),
+                    nilai: aktivitasVM.getAvgPaceFormattedByUser(userId),
                     ikon: Icons.speed_rounded,
                     warna: colorScheme.onPrimary,
                   ),
@@ -376,9 +335,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun satu item ringkasan statistik di dalam banner.
-  ///
-  /// Terdiri dari ikon kecil, nilai, dan label yang disusun vertikal.
   Widget _buildRingkasanItem({
     required String label,
     required String nilai,
@@ -387,7 +343,11 @@ class HomeScreen extends StatelessWidget {
   }) {
     return Column(
       children: [
-        Icon(ikon, color: warna.withAlpha(AppColors.alphaTeksNormal), size: AppSizes.ikonStandar),
+        Icon(
+          ikon,
+          color: warna.withAlpha(AppColors.alphaTeksNormal),
+          size: AppSizes.ikonStandar,
+        ),
         const SizedBox(height: 4),
         Text(
           nilai,
@@ -408,17 +368,12 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun baris kartu statistik keseluruhan yang dapat di-scroll horizontal.
-  ///
-  /// Menggunakan widget [StatsCard] untuk setiap kartu statistik.
-  /// Menampilkan 4 statistik: Jarak, Waktu, Kalori, dan Sesi.
   Widget _buildStatistikRow(
     ColorScheme colorScheme,
-    AktivitasProvider provider,
+    AktivitasViewModel aktivitasVM,
     String userId,
   ) {
-    // Ambil total waktu sekali saja untuk dipakai di format waktu
-    final totalWaktuMenit = provider.getTotalWaktuMenitByUser(userId);
+    final totalWaktuMenit = aktivitasVM.getTotalWaktuMenitByUser(userId);
 
     return SizedBox(
       height: AppSizes.tinggiScrollStat,
@@ -431,14 +386,12 @@ class HomeScreen extends StatelessWidget {
           0,
         ),
         children: [
-          // Kartu Jarak
           StatsCard(
             label: AppStrings.jarak,
-            nilai: provider.getTotalJarakFormattedByUser(userId),
+            nilai: aktivitasVM.getTotalJarakFormattedByUser(userId),
             ikon: Icons.map_outlined,
             warna: colorScheme.primary,
           ),
-          // Kartu Waktu — format jam+menit jika >= 60 menit
           StatsCard(
             label: AppStrings.waktu,
             nilai: totalWaktuMenit >= 60
@@ -447,17 +400,15 @@ class HomeScreen extends StatelessWidget {
             ikon: Icons.timer_outlined,
             warna: colorScheme.tertiary,
           ),
-          // Kartu Kalori — warna oranye untuk kesan "panas"
           StatsCard(
             label: AppStrings.kalori,
-            nilai: '${provider.getTotalKaloriByUser(userId)}',
+            nilai: '${aktivitasVM.getTotalKaloriByUser(userId)}',
             ikon: Icons.local_fire_department_outlined,
             warna: AppColors.kalori,
           ),
-          // Kartu Sesi
           StatsCard(
             label: AppStrings.sesi,
-            nilai: '${provider.getTotalSesiByUser(userId)}x',
+            nilai: '${aktivitasVM.getTotalSesiByUser(userId)}x',
             ikon: Icons.repeat_rounded,
             warna: colorScheme.secondary,
           ),
@@ -466,10 +417,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  /// Membangun tampilan kosong (empty state) saat belum ada aktivitas.
-  ///
-  /// Menampilkan ilustrasi ikon besar, teks penjelasan, dan tombol shortcut
-  /// untuk langsung membuka form pencatatan aktivitas baru.
   Widget _buildEmptyState(BuildContext context, ColorScheme colorScheme) {
     return Center(
       child: Padding(
@@ -477,7 +424,6 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Ikon ilustrasi besar di lingkaran
             Container(
               width: AppSizes.ukuranAvatarBesar,
               height: AppSizes.ukuranAvatarBesar,
@@ -511,7 +457,6 @@ class HomeScreen extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSizes.paddingHalamanH),
-            // Tombol shortcut — alternatif selain menekan FAB
             FilledButton.icon(
               onPressed: () => _tampilkanForm(context),
               icon: const Icon(Icons.add_rounded),
