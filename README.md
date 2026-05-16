@@ -1,17 +1,22 @@
-# flutter_application_1
+# Aplikasi Catat Lari
+## 📝 Description
+Aplikasi berbasis Android yang dirancang untuk memudahkan pengguna dalam mendokumentasikan aktivitas olahraga lari. Aplikasi ini membantu pengguna memantau progres latihan mereka dengan menyimpan riwayat lari secara terorganisir.
 
-A new Flutter project.
+## 🚀 Daftar dan Deskripsi Fitur
+*   **Autentikasi Pengguna**: Fitur Login dan Registrasi untuk menjaga keamanan data pribadi pengguna.
+*   **Pencatatan Lari**: Fitur utama untuk menginput data lari seperti jarak, durasi, dan tanggal.
+*   **Riwayat (History)**: Menampilkan daftar semua aktivitas lari yang telah dilakukan sebelumnya.
+*   **Update Profil**: Memungkinkan pengguna untuk memperbarui informasi akun.
+*   **Hapus Riwayat**: Fitur untuk menghapus catatan lari tertentu dari daftar history.
 
-## Getting Started
 
-This project is a starting point for a Flutter application.
+## ⚙️ Tech Stack
+- Flutter (Dart)
+- Model-View-ViewModel (MVVM)
+- SQLite Database
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 👥 Informasi Pembuat
+- Hafizh Ramadhan (24082010070)
+- Muhammad Mirza Hakim Pandiangan (24082010072)
+- Mahendra Stevioly Putra (24082010079)
+- Danillah Albaronna Faza Darmagama (24082010087)
